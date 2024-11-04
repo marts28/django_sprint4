@@ -162,7 +162,7 @@ class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     def test_func(self):
         print('its work')
         return self.request.user.is_superuser or \
-               (self.request.user.id == self.get_object().author.id)
+            (self.request.user.id == self.get_object().author.id)
 
     def handle_no_permission(self):
         post = self.get_object()
