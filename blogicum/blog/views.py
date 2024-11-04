@@ -10,7 +10,7 @@ from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 
 from blog.models import Post, Category
-from django.views.generic import TemplateView,\
+from django.views.generic import TemplateView, \
     UpdateView, CreateView, DeleteView
 
 from .forms import PostCreateForm, CommentForm, UserUpdateForm
@@ -23,10 +23,10 @@ def index(request):
     posts = Post.objects. \
         select_related('category', 'author', 'location'). \
         filter(
-            pub_date__lte=current_time,
-            is_published=True,
-            category__is_published=True
-        )
+        pub_date__lte=current_time,
+        is_published=True,
+        category__is_published=True
+    )
     for post in posts:
         post.comment_count = Comment.objects.filter(post=post).count()
     paginator = Paginator(posts, 10)
@@ -76,10 +76,10 @@ def category_posts(request, category_slug):
     posts = Post.objects. \
         select_related('category', 'author', 'location'). \
         filter(
-            pub_date__lte=current_time,
-            is_published=True,
-            category=category
-        )
+        pub_date__lte=current_time,
+        is_published=True,
+        category=category
+    )
 
     paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
@@ -111,10 +111,17 @@ class ProfileView(TemplateView):
         return context
 
 
-class ProfileUpdateView(LoginRequiredMixin, UpdateView):
+class ProfileUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = get_user_model()
     form_class = UserUpdateForm
     template_name = 'blog/user.html'
+
+    def test_func(self):
+        return self.request.user.id == self.get_object().id
+
+    def handle_no_permission(self):
+        user = self.get_object()
+        return redirect('blog:profile', username=user.username)
 
     def get_success_url(self):
         context = self.get_context_data()
@@ -140,13 +147,8 @@ class PostCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(instance)
 
 
-class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
-    model = Post
-    form_class = PostCreateForm
-    template_name = 'blog/create.html'
-
+class PostChangeMixin(UserPassesTestMixin):
     def test_func(self):
-        print('its work')
         return self.request.user.id == self.get_object().author.id
 
     def handle_no_permission(self):
@@ -154,19 +156,20 @@ class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return redirect('blog:post_detail', post_id=post.id)
 
 
-class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+class PostUpdateView(LoginRequiredMixin, PostChangeMixin, UpdateView):
+    model = Post
+    form_class = PostCreateForm
+    template_name = 'blog/create.html'
+
+
+class PostDeleteView(LoginRequiredMixin, PostChangeMixin, DeleteView):
     model = Post
     template_name = 'blog/create.html'
     success_url = reverse_lazy('blog:index')
 
     def test_func(self):
-        print('its work')
         return self.request.user.is_superuser or \
-            (self.request.user.id == self.get_object().author.id)
-
-    def handle_no_permission(self):
-        post = self.get_object()
-        return redirect('blog:post_detail', post_id=post.id)
+               (self.request.user.id == self.get_object().author.id)
 
 
 @login_required
@@ -182,27 +185,25 @@ def add_comment(request, post_id):
     return redirect('blog:post_detail', post_id=post_id)
 
 
-class CommentUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
-    model = Comment
-    form_class = CommentForm
-    template_name = 'blog/comment.html'
-
+class CommentChangeMixin(UserPassesTestMixin):
     def test_func(self):
         return self.request.user.id == self.get_object().author.id
 
     def handle_no_permission(self):
         comment = self.get_object()
         post = comment.post
-        print(post.id)
         return redirect('blog:post_detail', post_id=post.id)
 
 
-class CommentDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+class CommentUpdateView(LoginRequiredMixin, CommentChangeMixin, UpdateView):
     model = Comment
+    form_class = CommentForm
     template_name = 'blog/comment.html'
 
-    def test_func(self):
-        return self.request.user.id == self.get_object().author.id
+
+class CommentDeleteView(LoginRequiredMixin, CommentChangeMixin, DeleteView):
+    model = Comment
+    template_name = 'blog/comment.html'
 
     def get_success_url(self):
         context = self.get_context_data()
