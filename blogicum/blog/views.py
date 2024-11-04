@@ -1,9 +1,6 @@
-from django.contrib.admin.utils import get_deleted_objects
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.contrib.auth.models import User, AnonymousUser
-from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import render, get_object_or_404, redirect
@@ -13,10 +10,10 @@ from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 
 from blog.models import Post, Category
-from django.views.generic import ListView, DetailView, TemplateView, UpdateView, CreateView, DeleteView
-from django.views.generic.edit import BaseUpdateView
+from django.views.generic import TemplateView,\
+    UpdateView, CreateView, DeleteView
 
-from .forms import PostCreateForm, CommentForm, UserForm, UserUpdateForm
+from .forms import PostCreateForm, CommentForm, UserUpdateForm
 from .models import Comment
 
 
@@ -26,10 +23,10 @@ def index(request):
     posts = Post.objects. \
         select_related('category', 'author', 'location'). \
         filter(
-        pub_date__lte=current_time,
-        is_published=True,
-        category__is_published=True
-    )
+            pub_date__lte=current_time,
+            is_published=True,
+            category__is_published=True
+        )
     for post in posts:
         post.comment_count = Comment.objects.filter(post=post).count()
     paginator = Paginator(posts, 10)
@@ -79,10 +76,10 @@ def category_posts(request, category_slug):
     posts = Post.objects. \
         select_related('category', 'author', 'location'). \
         filter(
-        pub_date__lte=current_time,
-        is_published=True,
-        category=category
-    )
+            pub_date__lte=current_time,
+            is_published=True,
+            category=category
+        )
 
     paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
@@ -132,7 +129,8 @@ class PostCreateView(LoginRequiredMixin, CreateView):
     template_name = 'blog/create.html'
 
     def get_success_url(self):
-        return reverse('blog:profile', kwargs={'username': self.request.user.username})
+        return reverse('blog:profile',
+                       kwargs={'username': self.request.user.username})
 
     def form_valid(self, form):
         instance = form.save(commit=False)
@@ -142,7 +140,7 @@ class PostCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(instance)
 
 
-class PostUpdateView(LoginRequiredMixin,UserPassesTestMixin, UpdateView):
+class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Post
     form_class = PostCreateForm
     template_name = 'blog/create.html'
@@ -156,14 +154,15 @@ class PostUpdateView(LoginRequiredMixin,UserPassesTestMixin, UpdateView):
         return redirect('blog:post_detail', post_id=post.id)
 
 
-class PostDeleteView(LoginRequiredMixin,UserPassesTestMixin, DeleteView):
+class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Post
     template_name = 'blog/create.html'
     success_url = reverse_lazy('blog:index')
 
     def test_func(self):
         print('its work')
-        return (self.request.user.is_superuser) or (self.request.user.id == self.get_object().author.id)
+        return self.request.user.is_superuser or \
+               (self.request.user.id == self.get_object().author.id)
 
     def handle_no_permission(self):
         post = self.get_object()
